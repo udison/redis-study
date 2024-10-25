@@ -9,9 +9,32 @@ Roque Santos - 2024-10-24
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
+#define DEFAULT_PORT 1234
+
 // #pragma comment(lib, "Ws2_32.lib")
 // This #pragma doesnt work with g++ compiler, which is the one i'm using
 // to circumvent this, the option "-lwsock32" was added on compiler options
+
+static void do_something(int conn) {
+
+    // read buffer - "request"
+    char rbuf[64] = {};
+
+    // read() -> linux
+    // recv() -> windows
+    SSIZE_T n = recv(conn, rbuf, sizeof(rbuf) - 1, 0);
+
+    if (n < 0) {
+        std::cout << "recv() error";
+        return;
+    }
+
+    std::cout << "client says: " << rbuf << std::endl;
+
+    // write buffer - "response"
+    char wbuf[] = "world";
+    send(conn, wbuf, strlen(wbuf), 0);
+}
 
 int main() {
 
@@ -33,7 +56,7 @@ int main() {
     // Binding the server to an ipv4 address
     struct sockaddr_in addr = {};
     addr.sin_family = AF_INET;
-    addr.sin_port = ntohs(1234);
+    addr.sin_port = ntohs(DEFAULT_PORT);
     addr.sin_addr.s_addr = ntohl(0); // address 0.0.0.0
     int statusCode = bind(socketProc, (const sockaddr*)&addr, sizeof(addr));
 
@@ -50,6 +73,26 @@ int main() {
         std::cout << "Socket listening failed with code " << statusCode << std::endl;
         WSACleanup();
         return 1;
+    }
+
+    std::cout << "Server listening on " << DEFAULT_PORT << std::endl;
+
+    // Server loop
+    while (true) {
+        // accept connections
+        struct sockaddr_in client_addr = {};
+        socklen_t addrlen = sizeof(client_addr);
+        int connProc = accept(socketProc, (struct sockaddr*)&client_addr, &addrlen);
+
+        if (connProc < 0) {
+            continue; // error
+        }
+
+        do_something(connProc);
+
+        // close()       -> linux impl
+        // closesocket() -> windows impl
+        closesocket(connProc);
     }
 
     WSACleanup();
